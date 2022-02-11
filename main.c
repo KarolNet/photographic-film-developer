@@ -159,7 +159,7 @@ int main()
           if (bit_is_clear(PIND, 7)) {
             _delay_ms(50);
             times[setupStep] = times[setupStep] + 10;
-            if (times[setupStep] > 250) {
+            if (times[setupStep] >= 250) {
               times[setupStep] = 0;
             }
             write_eeprom_array(times_eeprom, times, sizeof(times_eeprom));
