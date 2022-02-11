@@ -6,28 +6,23 @@
 #include "lib/HD44780/HD44780.c"
 #include "lib/DS18B20/DS18B20.c"
 #include <string.h>
+#include "lib/INITIALIZATION/INITIALIZATION.c"
 
 #define F_CPU 1000000UL
-#define MOTOR (1<<PB0)		//definicja wyprowadzenia do którego podłączona jest dioda LED
-#define MOTOR_ON PORTB &= ~MOTOR	//makro załączające diodę LED
-#define MOTOR_OFF PORTB |= MOTOR	//makro do wyłączania diody LED
 #define read_eeprom_array(address,value_p,length) eeprom_read_block ((void *)value_p, (const void *)address, length)
 #define write_eeprom_array(address,value_p,length) eeprom_write_block ((const void *)value_p, (void *)address, length)
 
 int times_count = 7;
-
-uint8_t times[7] = {60,60,10,50,10,50,180};
 uint8_t statuses[7] = {1,0,1,0,1,0,1};
-// uint8_t EEMEM times_eeprom[7] = {60,60,10,50,10,50,180};
-// uint8_t EEMEM lupa = 14;
-int time[2];
+uint8_t EEMEM times_eeprom[7] = {60,60,10,50,10,50,180};
+
 int delay = 0;
-int volatile start = 1;
+int volatile start = 0;
 int volatile setup = 0;
 int volatile setupStep = 0;
-char str[4];
 
-void delay_s(int s) {
+void delay_s(int s)
+{
   while (0 < s) {
     if (start == 1) {
       _delay_ms(1000);
@@ -38,7 +33,9 @@ void delay_s(int s) {
   }
 }
 
-ISR(INT0_vect){
+// zatrzymaj pracę
+ISR(INT0_vect)
+{
   if (start == 0) {
     start = 1;
   } else {
@@ -60,38 +57,48 @@ ISR(INT0_vect){
 // }
 
 ISR(BADISR_vect){}
+void LCD_print_value(char *text, int value)
+{
+  char tmp[16]; 
+  char str[4];
+  str[0] = '\0';
+  tmp[0] = '\0';
+  sprintf(str, "%d", value);
+  strcat(tmp, text);
+  strcat(tmp, str);
+  LCD_WriteText(tmp);
+}
 
-
-void showTimes(int currentStep) {
-
+void showTimes(int currentStep, uint8_t statuses[], uint8_t times[])
+{
   int i;
   int lcdIndex = 0;
+
   LCD_Clear();
   LCD_Home();
 
   for (i = 0; i <times_count; i++ ) {
-    sprintf(str, "%d", statuses[i]);
     LCD_GoTo(0, lcdIndex);
     if (currentStep == i) {
        LCD_WriteText(">");
     }
-    LCD_WriteText(str);
+    LCD_print_value("", statuses[i]);
     lcdIndex = lcdIndex+2;
   }
   lcdIndex = 0;
   for (i = 0; i <times_count; i++ ) {
-    sprintf(str, "%d", times[i]);
     LCD_GoTo(1, lcdIndex);
-    LCD_WriteText(str);
+    LCD_print_value("", times[i]);
     lcdIndex = lcdIndex + 2;
   }
   _delay_ms(50);
 }
 
-void work() {
+void work(uint8_t times[])
+{
   int i;
   for (i = 0; i <times_count; i++ ) {
-    showTimes(i);
+    showTimes(i, statuses, times);
     if (statuses[i] == 1) {
       MOTOR_ON;
     } else {
@@ -102,42 +109,12 @@ void work() {
   }
   start = 0;
 }
+
 int main()
 {
-  char tmp[16]; 
-  // write_eeprom_array(times_eeprom, times,sizeof(times_eeprom));
-  // read_eeprom_array(times_eeprom, times, sizeof(times_eeprom));
-  // times[0] = eeprom_read_byte((uint8_t*)7);
-  // times[0] = eeprom_read_byte(&times_eeprom[1]);
-  // times[1] = 20;
-  // times[2] = 10;
-  // times[3] = 20;
-  // times[4] = 20;
-  // times[5] = 20;
-  // times[6] = eeprom_read_byte(&times_eeprom[1]);
-  DDRB |= MOTOR;
-
-  // przycisk start/stop
-  GICR = (1<<INT0) | (1<<INT1); 
-  MCUCR = _BV(ISC01);
-  // MCUCR = 0;
-  // MCUCR &= _BV(ISC01);
-  // MCUCR &= ~_BV(ISC00);
-  DDRD &= ~_BV(PD2);
-  PORTD |= _BV(PD2);
-
-  // przycisk setup
-  // GICR = _BV(INT1);
-  // MCUCR = _BV(ISC01);
-  DDRD &= ~_BV(PD3);
-  PORTD |= _BV(PD3);
-
-// button 1
-  DDRD &= ~_BV(PD6);
-  PORTD |= _BV(PD6);
-  // button 2
-  DDRD &= ~_BV(PD7);
-  PORTD |= _BV(PD7);
+  uint8_t times[7];
+  read_eeprom_array(&times_eeprom, times, 7);
+  initialize_ports();
   sei();
 
   LCD_Initalize();
@@ -145,7 +122,7 @@ int main()
   while(1) {
 
     if (start == 1) {
-      work();
+      work(times);
     } else {
       MOTOR_OFF;
       LCD_Clear();
@@ -156,42 +133,35 @@ int main()
       _delay_ms(50);
 
 
+      // ustawienie czasu 3-setup
       if (bit_is_clear(PIND, 3)) {
         while(1) {
           
           LCD_Clear();
           LCD_Home();
 
-          str[0] = '\0';
-          tmp[0] = '\0';
-          sprintf(str, "%d", setupStep);
-          strcat(tmp, "Krok: ");
-          strcat(tmp, str);
-          LCD_WriteText(tmp);
-
+          LCD_print_value("Krok: ", setupStep);
           LCD_GoTo(1,0);
-          str[0] = '\0';
-          tmp[0] = '\0';
-          sprintf(str, "%d", times[setupStep]);
-          strcat(tmp, "Czas: ");
-          strcat(tmp, str);
-          LCD_WriteText(tmp);
+          LCD_print_value("Czas: ", times[setupStep]);
 
           if (bit_is_clear(PIND, 6)) {
-            _delay_ms(20);
-            times[setupStep] = times[setupStep] - 30;
-            // write_eeprom_array(times_eeprom, times,sizeof(times_eeprom));
-            // _delay_ms(200);
-          }
-
-          if (bit_is_clear(PIND, 7)) {
-            _delay_ms(20);
-            times[setupStep] = times[setupStep] + 30;
+            _delay_ms(50);
+            times[setupStep] = times[setupStep] - 10;
             if (times[setupStep] < 0) {
               times[setupStep] = 0;
             }
-            // write_eeprom_array(times_eeprom, times,sizeof(times_eeprom));
-            // _delay_ms(200);
+            write_eeprom_array(times_eeprom, times, sizeof(times_eeprom));
+            _delay_ms(200);
+          }
+
+          if (bit_is_clear(PIND, 7)) {
+            _delay_ms(50);
+            times[setupStep] = times[setupStep] + 10;
+            if (times[setupStep] > 250) {
+              times[setupStep] = 0;
+            }
+            write_eeprom_array(times_eeprom, times, sizeof(times_eeprom));
+            _delay_ms(200);
           }
           if (bit_is_clear(PIND, 3)) {
             _delay_ms(20);
@@ -203,7 +173,7 @@ int main()
           if (start) {
             break;
           }
-          _delay_ms(100);
+          _delay_ms(50);
           
         }
       }
