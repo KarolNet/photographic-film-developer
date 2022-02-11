@@ -18,4 +18,4 @@ flash:
 	avrdude -p ${MCU} -c usbasp -U eeprom:w:${TARGET}.eep:i -F -P usb
 
 clean:
-	rm -f *.bin *.hex *.lss *.elf *.o *.map
+	rm -f *.bin *.hex *.lss *.elf *.o *.map *.eeprom *.o.p
