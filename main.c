@@ -21,18 +21,6 @@ int volatile start = 0;
 int volatile setup = 0;
 int volatile setupStep = 0;
 
-void delay_s(int s)
-{
-  while (0 < s) {
-    if (start == 1) {
-      _delay_ms(1000);
-      s -= 1;
-    } else {
-      break;
-    }
-  }
-}
-
 // stop work
 ISR(INT0_vect)
 {
@@ -71,41 +59,46 @@ void LCD_print_value(char *text, int value)
 
 void showTimes(int currentStep, uint8_t statuses[], uint8_t times[])
 {
-  int i;
-  int lcdIndex = 0;
-
   LCD_Clear();
   LCD_Home();
+  LCD_print_value("Step: ", currentStep + 1);
+  LCD_GoTo(0, 7);
+  LCD_print_value("/", 7);
+  LCD_GoTo(0, 10);
+  LCD_print_value("Sta: ", statuses[currentStep]);
+ 
+  uint8_t secundsLeft = times[currentStep];
+  while (0 < secundsLeft ) {
+     LCD_GoTo(1,0);
 
-  for (i = 0; i <times_count; i++ ) {
-    LCD_GoTo(0, lcdIndex);
-    if (currentStep == i) {
-       LCD_WriteText(">");
+     if (secundsLeft < 10) {
+      LCD_print_value("Time to end:   ", secundsLeft);
+     }else if (secundsLeft >= 10 && secundsLeft < 100) {
+      LCD_print_value("Time to end:  ", secundsLeft);
+     } else {
+       LCD_print_value("Time to end: ", secundsLeft);
+     }
+     
+    if (start == 1) {
+      _delay_ms(1000);
+      secundsLeft -= 1;
+    } else {
+      break;
     }
-    LCD_print_value("", statuses[i]);
-    lcdIndex = lcdIndex+2;
   }
-  lcdIndex = 0;
-  for (i = 0; i <times_count; i++ ) {
-    LCD_GoTo(1, lcdIndex);
-    LCD_print_value("", times[i]);
-    lcdIndex = lcdIndex + 2;
-  }
-  _delay_ms(50);
 }
 
 void work(uint8_t times[])
 {
   int i;
   for (i = 0; i <times_count; i++ ) {
-    showTimes(i, statuses, times);
+    
     if (statuses[i] == 1) {
       MOTOR_ON;
     } else {
       MOTOR_OFF;
     }
-
-    delay_s(times[i]);
+    showTimes(i, statuses, times);
   }
   start = 0;
 }
@@ -127,11 +120,10 @@ int main()
       MOTOR_OFF;
       LCD_Clear();
       LCD_Home();
-      LCD_WriteText("Koniec, wcisnij:");
-      LCD_GoTo(1,1);
-      LCD_WriteText("4-start, 3-setup");
+      LCD_WriteText("End, press:");
+      LCD_GoTo(1,0);
+      LCD_WriteText("3-setup, 4-start");
       _delay_ms(50);
-
 
       // show times testup menu
       if (bit_is_clear(PIND, 3)) {
@@ -140,7 +132,7 @@ int main()
           LCD_Clear();
           LCD_Home();
 
-          LCD_print_value("Krok: ", setupStep);
+          LCD_print_value("Krok: ", setupStep + 1);
           LCD_GoTo(1,0);
           LCD_print_value("Czas: ", times[setupStep]);
 
