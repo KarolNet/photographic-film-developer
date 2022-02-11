@@ -33,7 +33,7 @@ void delay_s(int s)
   }
 }
 
-// zatrzymaj pracę
+// stop work
 ISR(INT0_vect)
 {
   if (start == 0) {
@@ -133,7 +133,7 @@ int main()
       _delay_ms(50);
 
 
-      // ustawienie czasu 3-setup
+      // show times testup menu
       if (bit_is_clear(PIND, 3)) {
         while(1) {
           
@@ -144,6 +144,7 @@ int main()
           LCD_GoTo(1,0);
           LCD_print_value("Czas: ", times[setupStep]);
 
+          // del 10s
           if (bit_is_clear(PIND, 6)) {
             _delay_ms(50);
             times[setupStep] = times[setupStep] - 10;
@@ -154,6 +155,7 @@ int main()
             _delay_ms(200);
           }
 
+          // add 10s 
           if (bit_is_clear(PIND, 7)) {
             _delay_ms(50);
             times[setupStep] = times[setupStep] + 10;
@@ -163,6 +165,8 @@ int main()
             write_eeprom_array(times_eeprom, times, sizeof(times_eeprom));
             _delay_ms(200);
           }
+
+          // next setting
           if (bit_is_clear(PIND, 3)) {
             _delay_ms(20);
             setupStep++;
